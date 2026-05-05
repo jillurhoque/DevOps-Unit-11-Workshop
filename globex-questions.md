@@ -11,28 +11,66 @@ Note: You should have already followed the [set-up instructions](./Globex-Databa
 1.  What is last name of Employee with `Id` 10?
     <details><summary>Answer</summary>Golthorpp</details>
 
+SELECT "surname"
+FROM "employee"
+WHERE "id" = 10;
+
 2.  What is the `Id` of the Employee with NationalInsuranceNumber `9696037031`?
     <details><summary>Answer</summary>760</details>
+
+SELECT "id"
+FROM "employee"
+WHERE "nationalinsurancenumber" = '9696037031';
 
 3.  What is Simonette Wellbeloved's employee Id?
     <details><summary>Answer</summary>649</details>
 
+SELECT "id"
+FROM "employee"
+WHERE "firstname" = 'Simonette' AND "surname" = 'Wellbeloved';
+
 4.  What is the full name of the only employee at PayBand 3, who is managed by Simonette Wellbeloved?
     <details><summary>Answer</summary>Donnajean Pitfield</details>
+
+SELECT "firstname", "surname"
+FROM "employee"
+WHERE "payband" = 3
+  AND "managerid" = (
+    SELECT "id" FROM "employee"
+    WHERE "firstname" = 'Simonette' AND "surname" = 'Wellbeloved'
+  );
 
 5.  Who is the oldest employee?
     <details><summary>Answer</summary>Winny Dmtrovic</details>
 
+SELECT "firstname", "surname"
+FROM "employee"
+ORDER BY "dob" ASC
+LIMIT 1;
+
 6.  Who is the youngest employee?
     <details><summary>Answer</summary>Brigham Brookwell</details>
+
+SELECT "firstname", "surname"
+FROM "employee"
+ORDER BY "dob" DESC
+LIMIT 1;
 
 > You might find the `COUNT` function useful for future questions. Example usage: `SELECT COUNT(*) FROM Employee`.
 
 7. How many employees are at PayBand 1?
 <details><summary>Answer</summary>153</details>
 
+SELECT COUNT(*)
+FROM "employee"
+WHERE "payband" = 1;
+
 8. How many employees at PayBand 3 or below are **not** Union members?
 <details><summary>Answer</summary>60</details>
+
+SELECT COUNT(*)
+FROM "employee"
+WHERE "payband" <= 3 AND "unionmembershipno" IS NULL;
 
 ## Joins
 
@@ -41,12 +79,30 @@ For these questions, note that "orders" tracks Globex buying stock in, whilst "s
 1.  What is the name of the product that was requested in the order with ID 149?
     <details><summary>Answer</summary>Flector</details>
 
+SELECT p."name"
+FROM "order" o
+JOIN "product" p ON o."product" = p."id"
+WHERE o."id" = 149;
+
 2.  How many units of the product from the previous question were sold on the credit card with number `3535880159004410`?
     <details><summary>Answer</summary>7098.00</details>
     <details><summary>Hint</summary>Doesn't look like the card number is on the sale; can you find it elsewhere? Does this placement make sense?</details>
 
+SELECT SUM(s."amount")
+FROM "sale" s
+JOIN "product" p ON s."productid" = p."id"
+JOIN "user" u ON s."username" = u."username"
+WHERE p."name" = 'Flector'
+  AND u."cardnumber" = '3535880159004410';
+
 3.  We've noticed an error in an upstream system. When updating an employee's manager the employees table hasn't been correctly updated. The `ManagerId` has been updated, but the `ManagerFirstName` and `ManagerSurname` have not. How many records does this impact?
     <details><summary>Answer</summary>4</details>
+
+SELECT COUNT(*)
+FROM "employee" e
+JOIN "employee" m ON e."managerid" = m."id"
+WHERE e."managerfirstname" <> m."firstname"
+   OR e."managersurname" <> m."surname";
 
 ## Aggregation
 
@@ -57,18 +113,43 @@ The value of an order can be calculated by multiplying the `Amount` of product o
 1.  What was the value of order 115?
     <details><summary>Answer</summary>46527501.9600</details>
 
+SELECT o."amount" * p."sellingprice" AS value
+FROM "order" o
+JOIN "product" p ON o."product" = p."id"
+WHERE o."id" = 115;
+
 2.  What is the value of the highest value order in the system?
     <details><summary>Answer</summary>96975259.08</details>
+
+SELECT ROUND(MAX(o."amount" * p."sellingprice"), 2) AS max_value
+FROM "order" o
+JOIN "product" p ON o."product" = p."id";
 
 3.  What was the value of the most expensive order placed in 2019?
     <details><summary>Answer</summary>90005467.20</details>
     <details><summary>Hint</summary>Try using the `DATE_PART` function.</details>
 
+SELECT ROUND(MAX(o."amount" * p."sellingprice"), 2) AS max_value
+FROM "order" o
+JOIN "product" p ON o."product" = p."id"
+WHERE DATE_PART('year', o."date") = 2019;
+
 4.  What was the value of all orders placed in 2019?
     <details><summary>Answer</summary>8377327441.40</details>
 
+SELECT ROUND(SUM(o."amount" * p."sellingprice"), 2) AS total_value
+FROM "order" o
+JOIN "product" p ON o."product" = p."id"
+WHERE DATE_PART('year', o."date") = 2019;
+
 5.  What was the value of all orders placed in 2019 excluding the following: 'Voltaren','Loud Child', 'topiramate', 'Omeprazole'?
     <details><summary>Answer</summary>7572529633.86</details>
+
+SELECT ROUND(SUM(o."amount" * p."sellingprice"), 2) AS total_value
+FROM "order" o
+JOIN "product" p ON o."product" = p."id"
+WHERE DATE_PART('year', o."date") = 2019
+  AND p."name" NOT IN ('Voltaren', 'Loud Child', 'topiramate', 'Omeprazole');
 
 6.  (Optional) The finance director needs a month-by-month report of order values for 2020. Please write a query to produce total order values grouped by month name.
     <details>
@@ -90,6 +171,14 @@ The value of an order can be calculated by multiplying the `Amount` of product o
     |December  | 695348529.80  |
     </details>
     <details><summary>Hint</summary>You'll need the `GROUP BY` statement.</details>
+
+SELECT TO_CHAR(o."date", 'Month') AS month,
+       ROUND(SUM(o."amount" * p."sellingprice"), 2) AS value
+FROM "order" o
+JOIN "product" p ON o."product" = p."id"
+WHERE DATE_PART('year', o."date") = 2020
+GROUP BY TO_CHAR(o."date", 'Month'), DATE_PART('month', o."date")
+ORDER BY DATE_PART('month', o."date");
 
 7.  (Optional) Please adapt the above report so it prints the month names in Spanish.
     <details><summary>Answer</summary>
@@ -115,6 +204,16 @@ The value of an order can be calculated by multiplying the `Amount` of product o
     
     You can also use <a href ="https://www.postgresql.org/docs/current/functions-formatting.html">to_char()</a> to extract the month. Make sure you add the right prefix for the locale translation to work - see "Table 9.30. Template Pattern Modifiers for Numeric Formatting" on the same page for more details.
     </details>
+
+SET lc_time = 'es_ES';
+
+SELECT TO_CHAR(o."date", 'TMMonth') AS "Month",
+       ROUND(SUM(o."amount" * p."sellingprice"), 2) AS "Value"
+FROM "order" o
+JOIN "product" p ON o."product" = p."id"
+WHERE DATE_PART('year', o."date") = 2020
+GROUP BY TO_CHAR(o."date", 'TMMonth'), DATE_PART('month', o."date")
+ORDER BY DATE_PART('month', o."date");
 
 8.  (Optional) The report now needs to include every year - grouped and ordered by year _and_ month.
     <details><summary>Answer</summary>
@@ -159,6 +258,14 @@ The value of an order can be calculated by multiplying the `Amount` of product o
     | 2020 | December  | 676457857.58  |
     <details><summary>Hint</summary>You can pass multiple values to `ORDER BY` and `GROUP BY` commands.</details>
 
+SELECT DATE_PART('year', o."date") AS "Year",
+       TO_CHAR(o."date", 'Month') AS "Month",
+       ROUND(SUM(o."amount" * p."sellingprice"), 2) AS "Value"
+FROM "order" o
+JOIN "product" p ON o."product" = p."id"
+GROUP BY DATE_PART('year', o."date"), DATE_PART('month', o."date"), TO_CHAR(o."date", 'Month')
+ORDER BY DATE_PART('year', o."date"), DATE_PART('month', o."date");
+
 ## Optional Extras
 
 1.  Write a query that produces a report of PayBands, the total monthly salary paid to everyone in each band and what percentage of the total monthly salary bill that is.
@@ -170,3 +277,29 @@ The value of an order can be calculated by multiplying the `Amount` of product o
     > Note that in order to use variables, you must use them within a function.
 
     </details>
+
+WITH band_totals AS (
+  SELECT
+    pb."id" AS "PayBand",
+    pb."monthlysalary" * COUNT(e."id") AS total_band_salary
+  FROM "payband" pb
+  JOIN "employee" e ON e."payband" = pb."id"
+  GROUP BY pb."id", pb."monthlysalary"
+),
+total_salary AS (
+  SELECT SUM(total_band_salary) AS total_salary
+  FROM (
+    SELECT
+      pb."monthlysalary" * COUNT(e."id") AS total_band_salary
+    FROM "payband" pb
+    JOIN "employee" e ON e."payband" = pb."id"
+    GROUP BY pb."id", pb."monthlysalary"
+  ) sub
+)
+SELECT
+  b."PayBand",
+  ROUND(b.total_band_salary, 2) AS "TotalMonthlySalary",
+  ROUND((b.total_band_salary / t.total_salary) * 100, 2) AS "PercentOfTotal"
+FROM band_totals b
+CROSS JOIN total_salary t
+ORDER BY b."PayBand";
